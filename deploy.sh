@@ -1,47 +1,47 @@
 #!/bin/bash
 # ============================================================
-#  部門旅遊調查 - Linux 伺服器部署腳本
-#  執行方式：sudo bash deploy.sh
+#  部門旅遊調查 - Linux 部署腳本（無 sudo，適用一般帳號）
+#  在 twn153 上執行：bash ~/trip-survey/deploy.sh
 # ============================================================
 
-set -e
-
-APP_USER="tripsurvey"
-APP_DIR="/opt/trip-survey"
+APP_DIR="$HOME/trip-survey"
+PID_FILE="$APP_DIR/.server.pid"
+LOG_FILE="$APP_DIR/server.log"
 PORT=8080
 
-echo "=== [1/4] 建立應用程式目錄 ==="
-mkdir -p "$APP_DIR/data"
+start() {
+  if [ -f "$PID_FILE" ] && kill -0 "$(cat $PID_FILE)" 2>/dev/null; then
+    echo "⚠️  伺服器已在執行中 (PID $(cat $PID_FILE))"
+    return
+  fi
+  mkdir -p "$APP_DIR/data"
+  cd "$APP_DIR"
+  PORT=$PORT nohup python3 server.py > "$LOG_FILE" 2>&1 &
+  echo $! > "$PID_FILE"
+  sleep 1
+  echo "✅ 伺服器已啟動 (PID $(cat $PID_FILE))"
+  echo "   網址：http://$(hostname -I | awk '{print $1}'):$PORT"
+  echo "   Log ：tail -f $LOG_FILE"
+}
 
-echo "=== [2/4] 複製程式檔案 ==="
-cp index.html "$APP_DIR/"
-cp server.py  "$APP_DIR/"
-chown -R "$APP_USER" "$APP_DIR" 2>/dev/null || true   # 若帳號不存在則略過
+stop() {
+  if [ ! -f "$PID_FILE" ]; then echo "伺服器未執行"; return; fi
+  kill "$(cat $PID_FILE)" 2>/dev/null && rm "$PID_FILE"
+  echo "🛑 伺服器已停止"
+}
 
-echo "=== [3/4] 建立 systemd 服務 ==="
-cat > /etc/systemd/system/trip-survey.service << EOF
-[Unit]
-Description=Trip Survey Python Server
-After=network.target
+status() {
+  if [ -f "$PID_FILE" ] && kill -0 "$(cat $PID_FILE)" 2>/dev/null; then
+    echo "✅ 執行中 (PID $(cat $PID_FILE))"
+  else
+    echo "🔴 未執行"
+  fi
+}
 
-[Service]
-Type=simple
-WorkingDirectory=$APP_DIR
-ExecStart=$(which python3) $APP_DIR/server.py
-Environment=PORT=$PORT
-Restart=always
-RestartSec=5
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-echo "=== [4/4] 啟動服務 ==="
-systemctl daemon-reload
-systemctl enable trip-survey
-systemctl restart trip-survey
-systemctl status trip-survey --no-pager
-
-echo ""
-echo "✅ 部署完成！"
-echo "   伺服器網址：http://$(hostname -I | awk '{print $1}'):$PORT"
+case "${1:-start}" in
+  start)  start  ;;
+  stop)   stop   ;;
+  restart) stop; sleep 1; start ;;
+  status) status ;;
+  *) echo "用法：bash deploy.sh [start|stop|restart|status]" ;;
+esac
