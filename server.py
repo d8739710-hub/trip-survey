@@ -24,7 +24,7 @@ def write_responses(responses):
 VALID_VALUES = {'yes', 'maybe', 'no'}
 VALID_DATE_IDS = {f'd{i}' for i in range(1, 22)}
 
-def validate_and_clean(data: dict) -> dict | None:
+def validate_and_clean(data):  # returns dict or None
     name = str(data.get('name', '')).strip()[:50]
     if not name:
         return None
