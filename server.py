@@ -118,7 +118,7 @@ def get_local_ip():
         return '127.0.0.1'
 
 if __name__ == '__main__':
-    PORT = 8080
+    PORT = int(os.environ.get('PORT', 8080))
     server = HTTPServer(('0.0.0.0', PORT), Handler)
     local_ip = get_local_ip()
     print('=' * 50)
